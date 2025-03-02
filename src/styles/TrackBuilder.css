@@ -1,0 +1,364 @@
+.track-builder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 100vh;
+  color: white;
+  background-color: #0f0f1a;
+}
+
+.track-canvas {
+  width: 100%;
+  height: 75vh; /* Make canvas much larger */
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 0 30px rgba(124, 58, 237, 0.3);
+  margin: 20px;
+}
+
+.track-controls {
+  width: 100%;
+  max-width: 1200px;
+  padding: 20px;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(30, 30, 50, 0.7);
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.track-info {
+  flex: 1;
+}
+
+.track-info h2 {
+  font-size: 1.8rem;
+  margin-bottom: 15px;
+  color: #f5f5f5;
+  text-shadow: 0 0 10px rgba(124, 58, 237, 0.5);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  background: rgba(20, 20, 40, 0.7);
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(124, 58, 237, 0.3);
+}
+
+.stat span:first-child {
+  font-size: 0.9rem;
+  color: #a1a1aa;
+  margin-bottom: 5px;
+}
+
+.stat span:last-child {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: white;
+}
+
+.race-button, .back-button {
+  padding: 12px 30px;
+  border-radius: 8px;
+  font-size: 1.2rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-left: 15px;
+}
+
+.race-button {
+  background: linear-gradient(to right, #7c3aed, #c026d3);
+  color: white;
+  border: none;
+}
+
+.race-button:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 7px 14px rgba(0, 0, 0, 0.2), 0 0 10px rgba(124, 58, 237, 0.5);
+}
+
+.back-button {
+  background: transparent;
+  color: white;
+  border: 2px solid rgba(124, 58, 237, 0.8);
+}
+
+.back-button:hover {
+  background: rgba(124, 58, 237, 0.1);
+  transform: translateY(-3px);
+  box-shadow: 0 7px 14px rgba(0, 0, 0, 0.2);
+}
+
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  width: 100%;
+}
+
+.spinner {
+  border: 5px solid rgba(255, 255, 255, 0.1);
+  border-top: 5px solid #7c3aed;
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+  animation: spin 1s linear infinite;
+  margin-bottom: 20px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.error-message {
+  background: rgba(255, 50, 50, 0.2);
+  border: 1px solid rgba(255, 50, 50, 0.5);
+  padding: 20px;
+  border-radius: 8px;
+  text-align: center;
+  margin: 40px auto;
+  max-width: 600px;
+}
+
+.error-message button {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  padding: 10px 20px;
+  border-radius: 5px;
+  color: white;
+  font-weight: 600;
+  margin-top: 15px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.error-message button:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .track-controls {
+    flex-direction: column;
+  }
+  
+  .stats {
+    grid-template-columns: 1fr;
+    margin-bottom: 20px;
+  }
+  
+  .race-button, .back-button {
+    width: 100%;
+    margin: 5px 0;
+  }
+}
+
+/* Building track loader */
+.building-track {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  max-width: 800px;
+  padding: 40px;
+  text-align: center;
+}
+
+.building-track h1 {
+  font-size: 3rem;
+  margin-bottom: 15px;
+}
+
+.building-track p {
+  font-size: 1.2rem;
+  color: #a1a1aa;
+  margin-bottom: 40px;
+}
+
+.progress-container {
+  width: 100%;
+  margin-bottom: 40px;
+}
+
+.progress-bar {
+  height: 12px;
+  background-color: rgba(30, 30, 50, 0.8);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 10px;
+  border: 1px solid rgba(59, 54, 226, 0.3);
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(to right, #3b36e2, #7c3aed);
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  font-size: 0.9rem;
+  color: #a1a1aa;
+  text-align: center;
+  font-style: italic;
+}
+
+.building-details {
+  display: flex;
+  justify-content: center;
+  gap: 30px;
+  margin-top: 20px;
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(30, 30, 50, 0.5);
+  padding: 15px 25px;
+  border-radius: 8px;
+  border: 1px solid rgba(59, 54, 226, 0.3);
+}
+
+.detail-label {
+  font-size: 0.85rem;
+  color: #a1a1aa;
+  margin-bottom: 5px;
+}
+
+.detail-value {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+/* Track preview */
+.track-preview {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+}
+
+.track-header {
+  text-align: center;
+  padding: 20px 0;
+}
+
+.track-header h1 {
+  font-size: 2.5rem;
+  margin-bottom: 5px;
+}
+
+.track-header p {
+  font-size: 1.1rem;
+  color: #a1a1aa;
+}
+
+.track-container {
+  flex: 1;
+  margin: 0 20px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 2px solid rgba(59, 54, 226, 0.5);
+  box-shadow: 0 0 30px rgba(59, 54, 226, 0.2);
+}
+
+.track-details {
+  padding: 20px;
+  margin: 0 20px;
+  margin-top: 20px;
+  background: rgba(30, 30, 50, 0.5);
+  border-radius: 10px;
+  border: 1px solid rgba(59, 54, 226, 0.3);
+}
+
+.track-details h3 {
+  margin-bottom: 15px;
+  font-size: 1.3rem;
+  text-align: center;
+}
+
+.track-features {
+  display: flex;
+  justify-content: space-around;
+  flex-wrap: wrap;
+}
+
+.feature-item {
+  display: flex;
+  align-items: center;
+  margin: 5px 10px;
+  font-size: 1rem;
+}
+
+.feature-icon {
+  margin-right: 10px;
+  font-size: 1.2rem;
+}
+
+.start-race-button {
+  margin: 30px auto;
+  padding: 15px 40px;
+  font-size: 1.2rem;
+  border-radius: 40px;
+  background: linear-gradient(to right, #ff3d3d, #ff7b00);
+  box-shadow: 0 5px 15px rgba(255, 61, 61, 0.4);
+  transition: all 0.3s;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.start-race-button:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(255, 61, 61, 0.5);
+}
+
+.start-race-button:active {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 15px rgba(255, 61, 61, 0.4);
+}
+
+.track-actions {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  margin: 30px auto;
+}
+
+.view-2d-button {
+  padding: 15px 40px;
+  font-size: 1.2rem;
+  border-radius: 40px;
+  background: linear-gradient(to right, #3b36e2, #7c3aed);
+  box-shadow: 0 5px 15px rgba(59, 54, 226, 0.4);
+  transition: all 0.3s;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.view-2d-button:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(59, 54, 226, 0.5);
+}
+
+.view-2d-button:active {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 15px rgba(59, 54, 226, 0.4);
+} 

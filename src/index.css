@@ -1,0 +1,54 @@
+:root {
+  --primary: #7c3aed;
+  --primary-dark: #6d28d9;
+  --secondary: #c026d3;
+  --background: #0f0f1a;
+  --text: #ffffff;
+  --text-secondary: #a1a1aa;
+  --surface: rgba(30, 30, 50, 0.7);
+  --border: rgba(124, 58, 237, 0.3);
+  --shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  background-color: var(--background);
+  color: var(--text);
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+canvas {
+  display: block;
+}
+
+button, a {
+  font-family: inherit;
+}
+
+/* Enable smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Improve focus styles for accessibility */
+:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Disable outline for mouse users, keep for keyboard navigation */
+:focus:not(:focus-visible) {
+  outline: none;
+} 
