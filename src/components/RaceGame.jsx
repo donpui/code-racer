@@ -107,8 +107,8 @@ const Car = ({ position, rotation, carRef, cameraRef }) => {
         <meshStandardMaterial color="#222" metalness={0.8} roughness={0.2} />
       </mesh>
       
-      {/* Wheels with rims */}
-      <group position={[1.05, 0.4, 1.5]} rotation={[wheelRotation.current, Math.PI/2, 0]}>
+      {/* Wheels with rims - Fixed positions and rotations */}
+      <group position={[1.05, 0.4, 1.5]} rotation={[wheelRotation.current, 0, Math.PI/2]}>
         <mesh castShadow>
           <cylinderGeometry args={[0.4, 0.4, 0.3, 32]} />
           <meshStandardMaterial color="#111" roughness={0.9} />
@@ -120,7 +120,7 @@ const Car = ({ position, rotation, carRef, cameraRef }) => {
         </mesh>
       </group>
       
-      <group position={[-1.05, 0.4, 1.5]} rotation={[wheelRotation.current, Math.PI/2, 0]}>
+      <group position={[-1.05, 0.4, 1.5]} rotation={[wheelRotation.current, 0, Math.PI/2]}>
         <mesh castShadow>
           <cylinderGeometry args={[0.4, 0.4, 0.3, 32]} />
           <meshStandardMaterial color="#111" roughness={0.9} />
@@ -132,7 +132,7 @@ const Car = ({ position, rotation, carRef, cameraRef }) => {
         </mesh>
       </group>
       
-      <group position={[1.05, 0.4, -1.5]} rotation={[wheelRotation.current, Math.PI/2, 0]}>
+      <group position={[1.05, 0.4, -1.5]} rotation={[wheelRotation.current, 0, Math.PI/2]}>
         <mesh castShadow>
           <cylinderGeometry args={[0.4, 0.4, 0.3, 32]} />
           <meshStandardMaterial color="#111" roughness={0.9} />
@@ -144,7 +144,7 @@ const Car = ({ position, rotation, carRef, cameraRef }) => {
         </mesh>
       </group>
       
-      <group position={[-1.05, 0.4, -1.5]} rotation={[wheelRotation.current, Math.PI/2, 0]}>
+      <group position={[-1.05, 0.4, -1.5]} rotation={[wheelRotation.current, 0, Math.PI/2]}>
         <mesh castShadow>
           <cylinderGeometry args={[0.4, 0.4, 0.3, 32]} />
           <meshStandardMaterial color="#111" roughness={0.9} />
@@ -192,48 +192,57 @@ const TrackSegment = ({ position, rotation, scale, color }) => {
   );
 };
 
-// Track curve component (reused from TrackBuilder)
-const TrackCurve = ({ position, rotation, complexity }) => {
-  // Calculate curve parameters based on complexity
-  const outerRadius = 5;
-  const innerRadius = 5 - complexity / 3;  // Width varies by complexity
-  const thickness = 0.2;  // Same thickness as straight segments
+// Track curve component 
+const TrackCurve = ({ position, rotation, complexity, radius = 15, angle = 90, width = 10, direction = "right" }) => {
+  // Create curve shape
+  const curve = new THREE.Shape();
+  const innerRadius = radius - width/2;
+  const outerRadius = radius + width/2;
+  const angleRad = angle * Math.PI / 180;
+  
+  // Draw the curve with proper orientation to connect with track segments
+  if (direction === "right") {
+    curve.moveTo(0, -innerRadius);
+    curve.absarc(0, 0, innerRadius, -Math.PI/2, -Math.PI/2 + angleRad, false);
+    curve.lineTo(outerRadius * Math.cos(-Math.PI/2 + angleRad), outerRadius * Math.sin(-Math.PI/2 + angleRad));
+    curve.absarc(0, 0, outerRadius, -Math.PI/2 + angleRad, -Math.PI/2, true);
+    curve.closePath();
+  } else {
+    curve.moveTo(0, -innerRadius);
+    curve.absarc(0, 0, innerRadius, -Math.PI/2, -Math.PI/2 - angleRad, true);
+    curve.lineTo(outerRadius * Math.cos(-Math.PI/2 - angleRad), outerRadius * Math.sin(-Math.PI/2 - angleRad));
+    curve.absarc(0, 0, outerRadius, -Math.PI/2 - angleRad, -Math.PI/2, false);
+    curve.closePath();
+  }
+  
+  const extrudeSettings = {
+    steps: 1,
+    depth: 0.5,
+    bevelEnabled: false
+  };
   
   return (
     <group position={position} rotation={rotation}>
-      {/* Main curve surface */}
-      <mesh position={[0, 0, 0]} rotation={[0, 0, 0]}>
-        <torusGeometry 
-          args={[
-            outerRadius,         // Outer radius
-            (outerRadius - innerRadius) / 2,  // Tube radius (half of the track width)
-            16,                  // Radial segments
-            16,                  // Tubular segments
-            Math.PI / 2          // Arc (quarter circle)
-          ]} 
-        />
+      <mesh receiveShadow castShadow rotation={[-Math.PI / 2, 0, 0]}>
+        <extrudeGeometry args={[curve, extrudeSettings]} />
         <meshStandardMaterial 
-          color={complexity > 7 ? "#ff3d3d" : "#ffa500"} 
-          roughness={0.6}
+          color="#444466" 
+          roughness={0.4}
+          metalness={0.3}
         />
       </mesh>
       
-      {/* Curve base/ground */}
-      <mesh position={[0, -thickness/2, 0]} rotation={[0, 0, 0]}>
-        <ringGeometry 
-          args={[
-            innerRadius,     // Inner radius
-            outerRadius,     // Outer radius
-            16,              // Segments
-            1,               // Segments theta
-            0,               // Start angle
-            Math.PI / 2      // End angle
-          ]} 
-        />
-        <meshStandardMaterial 
-          color="#1a1a2e" 
-          roughness={0.8}
-        />
+      {/* Add curve indicators */}
+      <mesh 
+        position={[
+          direction === "right" ? radius/2 : -radius/2, 
+          0.26, 
+          direction === "right" ? radius/2 : -radius/2
+        ]}
+        rotation={[0, 0, 0]}
+      >
+        <boxGeometry args={[0.5, 0.01, 3]} />
+        <meshStandardMaterial color="#ff8844" />
       </mesh>
     </group>
   );
@@ -418,10 +427,18 @@ const GameScene = ({ trackData }) => {
     
     // Very basic collision detection
     // Detect if car is too far from track (simplified)
-    const farFromTrack = !trackData.segments.some(segment => {
-      const segmentPos = new THREE.Vector3(...segment.position);
-      return car.position.distanceTo(segmentPos) < 20;
-    });
+    const farFromTrack = !(
+      // Check if near any straight segment
+      (trackData.straights && trackData.straights.some(segment => {
+        const segmentPos = new THREE.Vector3(...segment.position);
+        return car.position.distanceTo(segmentPos) < 20;
+      })) || 
+      // Check if near any curve
+      (trackData.curves && trackData.curves.some(curve => {
+        const curvePos = new THREE.Vector3(...curve.position);
+        return car.position.distanceTo(curvePos) < 20;
+      }))
+    );
     
     if (farFromTrack) {
       // Reset car position if it falls off track
@@ -469,24 +486,44 @@ const GameScene = ({ trackData }) => {
       />
       
       {/* Track segments */}
-      {trackData.segments.map((segment, index) => (
+      {trackData.straights && trackData.straights.map((segment, index) => (
         <TrackSegment 
           key={`segment-${index}`}
           position={segment.position}
           rotation={segment.rotation}
-          scale={segment.scale}
-          color={segment.color}
+          scale={{ 
+            x: segment.width || 10, 
+            y: 0.2, 
+            z: segment.length || 20 
+          }}
+          color="#444466"
         />
       ))}
       
       {/* Track curves */}
-      {trackData.curves.map((curve, index) => (
+      {trackData.curves && trackData.curves.map((curve, index) => (
         <TrackCurve 
           key={`curve-${index}`}
           position={curve.position}
           rotation={curve.rotation}
-          complexity={curve.complexity}
+          complexity={curve.complexity || 5}
+          radius={curve.radius || 15}
+          angle={curve.angle || 90}
+          width={curve.width || 10}
+          direction={curve.direction || "right"}
         />
+      ))}
+      
+      {/* Track jumps if available */}
+      {trackData.jumps && trackData.jumps.map((jump, index) => (
+        <mesh 
+          key={`jump-${index}`}
+          position={jump.position}
+          rotation={jump.rotation}
+        >
+          <boxGeometry args={[jump.width || 10, jump.height || 5, jump.length || 15]} />
+          <meshStandardMaterial color="#555577" />
+        </mesh>
       ))}
       
       {/* Start/finish line */}

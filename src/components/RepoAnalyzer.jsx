@@ -4,6 +4,7 @@ import { Canvas } from '@react-three/fiber';
 import { Stars } from '@react-three/drei';
 import '../styles/RepoAnalyzer.css';
 import { getDemoRepoData } from '../data/demoRepos';
+import RepoAnalyzerService from '../services/RepoAnalyzer';
 
 const RepoAnalyzer = () => {
   const navigate = useNavigate();
@@ -28,23 +29,36 @@ const RepoAnalyzer = () => {
     
     setIsAnalyzing(true);
     
-    // Check for demo repository data
-    const demoData = getDemoRepoData(repoUrl);
-    
-    if (demoData) {
-      // Immediately use demo data without any fetching
-      console.log("Using pre-analyzed demo data for:", repoUrl);
-      navigate('/build-track', { 
-        state: { 
-          repoUrl, 
-          analysisData: demoData,
-          trackData: demoData.trackData // Pass pre-generated track data
-        } 
-      });
-    } else {
-      // For non-demo repositories, redirect to the real analyzer
-      // In a real implementation, this would call your GitHub API
-      setError('This is a demo. Only pre-configured repositories can be analyzed.');
+    try {
+      // Check for demo repository data
+      const demoData = getDemoRepoData(repoUrl);
+      
+      if (demoData) {
+        // Immediately use demo data without any fetching
+        console.log("Using pre-analyzed demo data for:", repoUrl);
+        navigate('/build-track', { 
+          state: { 
+            repoUrl, 
+            analysisData: demoData,
+            trackData: demoData.trackData // Pass pre-generated track data
+          } 
+        });
+      } else {
+        // For non-demo repositories, use the RepoAnalyzer service
+        console.log("Analyzing repository:", repoUrl);
+        const analysisData = await RepoAnalyzerService.analyzeRepository(repoUrl);
+        
+        // Navigate to track builder with the analysis data
+        navigate('/build-track', { 
+          state: { 
+            repoUrl, 
+            analysisData
+          } 
+        });
+      }
+    } catch (error) {
+      console.error("Error analyzing repository:", error);
+      setError(`Failed to analyze repository: ${error.message || 'Unknown error'}`);
       setIsAnalyzing(false);
     }
   };
@@ -111,7 +125,7 @@ const RepoAnalyzer = () => {
             {/* Add more example buttons as needed */}
           </div>
           <p className="demo-note">
-            Note: These example repositories use pre-analyzed data and don't require fetching from GitHub.
+            Note: These example repositories use pre-analyzed data and don't require fetching from GitHub. You can analyze any public GitHub repository by entering its URL.
           </p>
         </div>
       </div>

@@ -137,10 +137,20 @@ const TrackCurve = ({ radius, angle, width, position, rotation, direction }) => 
   const outerRadius = radius + width/2;
   const angleRad = angle * Math.PI / 180;
   
-  curve.moveTo(innerRadius, 0);
-  curve.absarc(0, 0, innerRadius, 0, angleRad, false);
-  curve.absarc(0, 0, outerRadius, angleRad, 0, true);
-  curve.closePath();
+  // Draw the curve with proper orientation to connect with track segments
+  if (direction === "right") {
+    curve.moveTo(0, -innerRadius);
+    curve.absarc(0, 0, innerRadius, -Math.PI/2, -Math.PI/2 + angleRad, false);
+    curve.lineTo(outerRadius * Math.cos(-Math.PI/2 + angleRad), outerRadius * Math.sin(-Math.PI/2 + angleRad));
+    curve.absarc(0, 0, outerRadius, -Math.PI/2 + angleRad, -Math.PI/2, true);
+    curve.closePath();
+  } else {
+    curve.moveTo(0, -innerRadius);
+    curve.absarc(0, 0, innerRadius, -Math.PI/2, -Math.PI/2 - angleRad, true);
+    curve.lineTo(outerRadius * Math.cos(-Math.PI/2 - angleRad), outerRadius * Math.sin(-Math.PI/2 - angleRad));
+    curve.absarc(0, 0, outerRadius, -Math.PI/2 - angleRad, -Math.PI/2, false);
+    curve.closePath();
+  }
   
   const extrudeSettings = {
     steps: 1,
@@ -150,7 +160,7 @@ const TrackCurve = ({ radius, angle, width, position, rotation, direction }) => 
   
   return (
     <group position={position} rotation={rotation}>
-      <mesh receiveShadow castShadow>
+      <mesh receiveShadow castShadow rotation={[-Math.PI / 2, 0, 0]}>
         <extrudeGeometry args={[curve, extrudeSettings]} />
         <meshStandardMaterial 
           color="#444466" 
@@ -243,12 +253,41 @@ const TrackBuilder = () => {
       // Or generate it if we have analysis data
       else if (location.state.analysisData) {
         console.log("Generating track from analysis data");
-        const generatedTrackData = TrackGenerator.generateTrackFromAnalysis(
+        const generatedTrackData = TrackGenerator.generateTrack(
           location.state.analysisData
         );
+        
+        // Transform the track data structure for the component
+        // Map segments and curves from the generated data to the expected format
+        const transformedTrackData = {
+          straights: generatedTrackData.segments.map((segment, index) => ({
+            id: `s-${index}`,
+            length: segment.scale.z,
+            width: segment.scale.x,
+            position: segment.position,
+            rotation: segment.rotation
+          })),
+          curves: generatedTrackData.curves.map((curve, index) => ({
+            id: `c-${index}`,
+            radius: 15, // Default radius
+            angle: 90,  // Default angle (90 degrees)
+            width: 10,  // Default width
+            position: curve.position,
+            rotation: curve.rotation,
+            direction: curve.rotation[1] > 0 ? "right" : "left"
+          })),
+          jumps: [],  // No jumps in the generated data
+          stats: {
+            length: generatedTrackData.metadata?.length || 0,
+            complexity: generatedTrackData.metadata?.complexity || 0,
+            difficulty: "medium",
+            turns: generatedTrackData.metadata?.turns || 0
+          }
+        };
+        
         setTrackData({
           ...defaultTrackData,
-          ...generatedTrackData
+          ...transformedTrackData
         });
       } else {
         throw new Error("No track or analysis data provided");
