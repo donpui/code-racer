@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Stars } from '@react-three/drei';
-import TrackGenerator from '../utils/TrackGenerator';
+import TrackGenerator from '../utils/track/TrackGenerator';
 import '../styles/TrackBuilder.css';
 import * as THREE from 'three';
 
