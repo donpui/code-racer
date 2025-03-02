@@ -182,38 +182,35 @@ const Car = ({ position, rotation, carRef, cameraRef }) => {
   );
 };
 
-// Track segment component (reused from TrackBuilder)
+// Track components for the race scene
 const TrackSegment = ({ position, rotation, scale, color }) => {
   return (
-    <mesh position={position} rotation={rotation}>
+    <mesh position={position} rotation={rotation} receiveShadow>
       <boxGeometry args={[scale.x, scale.y, scale.z]} />
-      <meshStandardMaterial color={color} />
+      <meshStandardMaterial color={color || "#444466"} roughness={0.7} />
     </mesh>
   );
 };
 
-// Track curve component 
-const TrackCurve = ({ position, rotation, complexity, radius = 15, angle = 90, width = 10, direction = "right" }) => {
+// Track curve component for racing
+const TrackCurve = ({ position, rotation, radius, angle, width, direction, color }) => {
   // Create curve shape
   const curve = new THREE.Shape();
   const innerRadius = radius - width/2;
   const outerRadius = radius + width/2;
   const angleRad = angle * Math.PI / 180;
   
-  // Draw the curve with proper orientation to connect with track segments
-  if (direction === "right") {
-    curve.moveTo(0, -innerRadius);
-    curve.absarc(0, 0, innerRadius, -Math.PI/2, -Math.PI/2 + angleRad, false);
-    curve.lineTo(outerRadius * Math.cos(-Math.PI/2 + angleRad), outerRadius * Math.sin(-Math.PI/2 + angleRad));
-    curve.absarc(0, 0, outerRadius, -Math.PI/2 + angleRad, -Math.PI/2, true);
-    curve.closePath();
-  } else {
-    curve.moveTo(0, -innerRadius);
-    curve.absarc(0, 0, innerRadius, -Math.PI/2, -Math.PI/2 - angleRad, true);
-    curve.lineTo(outerRadius * Math.cos(-Math.PI/2 - angleRad), outerRadius * Math.sin(-Math.PI/2 - angleRad));
-    curve.absarc(0, 0, outerRadius, -Math.PI/2 - angleRad, -Math.PI/2, false);
-    curve.closePath();
-  }
+  // Calculate curve parameters
+  const startAngle = direction === "right" ? -Math.PI/2 : -Math.PI/2;
+  const endAngle = direction === "right" ? startAngle + angleRad : startAngle - angleRad;
+  const clockwise = direction === "right" ? false : true;
+  
+  // Draw the curve shape
+  curve.moveTo(innerRadius * Math.cos(startAngle), innerRadius * Math.sin(startAngle));
+  curve.absarc(0, 0, innerRadius, startAngle, endAngle, clockwise);
+  curve.lineTo(outerRadius * Math.cos(endAngle), outerRadius * Math.sin(endAngle));
+  curve.absarc(0, 0, outerRadius, endAngle, startAngle, !clockwise);
+  curve.closePath();
   
   const extrudeSettings = {
     steps: 1,
@@ -221,28 +218,36 @@ const TrackCurve = ({ position, rotation, complexity, radius = 15, angle = 90, w
     bevelEnabled: false
   };
   
+  // Use the passed color or fallback to a default
+  const curveColor = color || (direction === "right" ? "#FFA500" : "#FFCC00");
+  
   return (
     <group position={position} rotation={rotation}>
       <mesh receiveShadow castShadow rotation={[-Math.PI / 2, 0, 0]}>
         <extrudeGeometry args={[curve, extrudeSettings]} />
         <meshStandardMaterial 
-          color="#444466" 
+          color={curveColor}
           roughness={0.4}
           metalness={0.3}
         />
       </mesh>
       
-      {/* Add curve indicators */}
+      {/* Optional: Add a subtle lane marking line */}
       <mesh 
-        position={[
-          direction === "right" ? radius/2 : -radius/2, 
-          0.26, 
-          direction === "right" ? radius/2 : -radius/2
-        ]}
-        rotation={[0, 0, 0]}
+        position={[0, 0.05, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
       >
-        <boxGeometry args={[0.5, 0.01, 3]} />
-        <meshStandardMaterial color="#ff8844" />
+        <ringGeometry 
+          args={[
+            radius - 0.2, 
+            radius, 
+            32, 
+            1,
+            startAngle,
+            angleRad
+          ]} 
+        />
+        <meshStandardMaterial color="#ffffff" opacity={0.6} transparent />
       </mesh>
     </group>
   );
@@ -250,10 +255,34 @@ const TrackCurve = ({ position, rotation, complexity, radius = 15, angle = 90, w
 
 // Game scene component
 const GameScene = ({ trackData }) => {
+  // Add debugging output for trackData
+  console.log("========== RACE GAME TRACK DEBUG ==========");
+  console.log("Race Game Track Data:", trackData);
+  if (trackData.straights) {
+    console.log(`Straight segments (${trackData.straights.length}):`, trackData.straights);
+  }
+  if (trackData.curves) {
+    console.log(`Curves (${trackData.curves.length}):`, trackData.curves);
+  }
+  console.log("========== END RACE GAME TRACK DEBUG ==========");
+
   const carRef = useRef();
   const cameraRef = useRef();
   const cameraPositionRef = useRef(new THREE.Vector3(0, 10, 10));
   const cameraLookAtRef = useRef(new THREE.Vector3(0, 0, 0));
+  const roadMeshRefs = useRef([]);
+  
+  // Set up refs array for road meshes
+  useEffect(() => {
+    if (trackData) {
+      const totalSegments = 
+        (trackData.straights ? trackData.straights.length : 0) + 
+        (trackData.curves ? trackData.curves.length : 0) +
+        (trackData.jumps ? trackData.jumps.length : 0);
+      
+      roadMeshRefs.current = Array(totalSegments).fill().map(() => createRef());
+    }
+  }, [trackData]);
   
   // Game state
   const [speed, setSpeed] = useState(0);
@@ -506,11 +535,11 @@ const GameScene = ({ trackData }) => {
           key={`curve-${index}`}
           position={curve.position}
           rotation={curve.rotation}
-          complexity={curve.complexity || 5}
           radius={curve.radius || 15}
           angle={curve.angle || 90}
           width={curve.width || 10}
           direction={curve.direction || "right"}
+          color={curve.color}
         />
       ))}
       

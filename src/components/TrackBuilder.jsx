@@ -130,27 +130,24 @@ const TrackStraight = ({ length, width, position, rotation }) => {
   );
 };
 
-const TrackCurve = ({ radius, angle, width, position, rotation, direction }) => {
+const TrackCurve = ({ radius, angle, width, position, rotation, direction, color }) => {
   // Create curve shape
   const curve = new THREE.Shape();
   const innerRadius = radius - width/2;
   const outerRadius = radius + width/2;
   const angleRad = angle * Math.PI / 180;
   
-  // Draw the curve with proper orientation to connect with track segments
-  if (direction === "right") {
-    curve.moveTo(0, -innerRadius);
-    curve.absarc(0, 0, innerRadius, -Math.PI/2, -Math.PI/2 + angleRad, false);
-    curve.lineTo(outerRadius * Math.cos(-Math.PI/2 + angleRad), outerRadius * Math.sin(-Math.PI/2 + angleRad));
-    curve.absarc(0, 0, outerRadius, -Math.PI/2 + angleRad, -Math.PI/2, true);
-    curve.closePath();
-  } else {
-    curve.moveTo(0, -innerRadius);
-    curve.absarc(0, 0, innerRadius, -Math.PI/2, -Math.PI/2 - angleRad, true);
-    curve.lineTo(outerRadius * Math.cos(-Math.PI/2 - angleRad), outerRadius * Math.sin(-Math.PI/2 - angleRad));
-    curve.absarc(0, 0, outerRadius, -Math.PI/2 - angleRad, -Math.PI/2, false);
-    curve.closePath();
-  }
+  // Calculate curve parameters
+  const startAngle = direction === "right" ? -Math.PI/2 : -Math.PI/2;
+  const endAngle = direction === "right" ? startAngle + angleRad : startAngle - angleRad;
+  const clockwise = direction === "right" ? false : true;
+  
+  // Draw the curve shape
+  curve.moveTo(innerRadius * Math.cos(startAngle), innerRadius * Math.sin(startAngle));
+  curve.absarc(0, 0, innerRadius, startAngle, endAngle, clockwise);
+  curve.lineTo(outerRadius * Math.cos(endAngle), outerRadius * Math.sin(endAngle));
+  curve.absarc(0, 0, outerRadius, endAngle, startAngle, !clockwise);
+  curve.closePath();
   
   const extrudeSettings = {
     steps: 1,
@@ -158,28 +155,38 @@ const TrackCurve = ({ radius, angle, width, position, rotation, direction }) => 
     bevelEnabled: false
   };
   
+  // Use the passed color or fallback to a default
+  const curveColor = color || (direction === "right" ? "#FFA500" : "#FFCC00");
+  
   return (
     <group position={position} rotation={rotation}>
+      {/* Main track surface - flat extruded shape */}
       <mesh receiveShadow castShadow rotation={[-Math.PI / 2, 0, 0]}>
         <extrudeGeometry args={[curve, extrudeSettings]} />
         <meshStandardMaterial 
-          color="#444466" 
+          color={curveColor}
           roughness={0.4}
           metalness={0.3}
         />
       </mesh>
       
-      {/* Add curve indicators */}
+      {/* Fix: Replace torus with flat line markers */}
       <mesh 
-        position={[
-          direction === "right" ? radius/2 : -radius/2, 
-          0.26, 
-          direction === "right" ? radius/2 : -radius/2
-        ]}
-        rotation={[0, 0, 0]}
+        position={[0, 0.26, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
       >
-        <boxGeometry args={[0.5, 0.01, 3]} />
-        <meshStandardMaterial color="#ff8844" />
+        {/* Create a flat arc line instead of a torus */}
+        <ringGeometry 
+          args={[
+            radius - 0.2, 
+            radius + 0.2, 
+            32, 
+            1,
+            startAngle,
+            angleRad
+          ]} 
+        />
+        <meshStandardMaterial color="#ff8844" emissive="#ff5511" emissiveIntensity={0.2} />
       </mesh>
     </group>
   );
@@ -243,7 +250,7 @@ const TrackBuilder = () => {
       
       // Use pre-generated track data if available
       if (location.state.trackData) {
-        console.log("Using pre-generated track data");
+        console.log("Using pre-generated track data", location.state.trackData);
         // Merge with defaults to ensure all properties exist
         setTrackData({
           ...defaultTrackData,
@@ -252,30 +259,46 @@ const TrackBuilder = () => {
       } 
       // Or generate it if we have analysis data
       else if (location.state.analysisData) {
-        console.log("Generating track from analysis data");
+        console.log("Generating track from analysis data", location.state.analysisData);
         const generatedTrackData = TrackGenerator.generateTrack(
           location.state.analysisData
         );
         
+        // Debug log the generated track data
+        console.log("========== TRACK DEBUG ==========");
+        console.log("Generated Track Data:", generatedTrackData);
+        console.log("Straights:", generatedTrackData.straights);
+        console.log("Curves:", generatedTrackData.curves);
+        console.log("Metadata:", generatedTrackData.metadata);
+        
         // Transform the track data structure for the component
         // Map segments and curves from the generated data to the expected format
         const transformedTrackData = {
-          straights: generatedTrackData.segments.map((segment, index) => ({
-            id: `s-${index}`,
-            length: segment.scale.z,
-            width: segment.scale.x,
-            position: segment.position,
-            rotation: segment.rotation
-          })),
-          curves: generatedTrackData.curves.map((curve, index) => ({
-            id: `c-${index}`,
-            radius: 15, // Default radius
-            angle: 90,  // Default angle (90 degrees)
-            width: 10,  // Default width
-            position: curve.position,
-            rotation: curve.rotation,
-            direction: curve.rotation[1] > 0 ? "right" : "left"
-          })),
+          straights: generatedTrackData.straights.map((segment, index) => {
+            const transformedSegment = {
+              id: `s-${index}`,
+              length: segment.length,
+              width: segment.width,
+              position: segment.position,
+              rotation: segment.rotation
+            };
+            console.log(`Straight segment ${index}:`, transformedSegment);
+            return transformedSegment;
+          }),
+          curves: generatedTrackData.curves.map((curve, index) => {
+            const transformedCurve = {
+              id: `c-${index}`,
+              radius: curve.radius || 15,  // Use provided radius or default
+              angle: curve.angle || 90,    // Use provided angle or default
+              width: curve.width || 10,    // Use provided width or default
+              position: curve.position,
+              rotation: curve.rotation,
+              direction: curve.direction || "right",
+              color: curve.color || (curve.direction === "right" ? "#FFA500" : "#FFCC00")
+            };
+            console.log(`Curve ${index}:`, transformedCurve);
+            return transformedCurve;
+          }),
           jumps: [],  // No jumps in the generated data
           stats: {
             length: generatedTrackData.metadata?.length || 0,
@@ -284,6 +307,9 @@ const TrackBuilder = () => {
             turns: generatedTrackData.metadata?.turns || 0
           }
         };
+        
+        console.log("Transformed Track Data:", transformedTrackData);
+        console.log("========== END TRACK DEBUG ==========");
         
         setTrackData({
           ...defaultTrackData,
@@ -343,6 +369,7 @@ const TrackBuilder = () => {
             position={curve?.position || [0, 0, 0]} 
             rotation={curve?.rotation || [0, 0, 0]} 
             direction={curve?.direction || "right"} 
+            color={curve?.color}
           />
         ))}
         

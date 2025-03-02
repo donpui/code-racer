@@ -10,6 +10,8 @@ class TrackGenerator {
    * @returns {Object} Track data for rendering
    */
   generateTrack(analysisData) {
+    console.log("Starting track generation with analysis data:", analysisData);
+    
     // Extract relevant metrics from analysis data
     const {
       fileCount,
@@ -21,7 +23,7 @@ class TrackGenerator {
     } = analysisData;
     
     // Track segments and curves collections
-    const segments = [];
+    const straights = [];
     const curves = [];
     
     // Track generation parameters
@@ -30,25 +32,35 @@ class TrackGenerator {
     const segmentLength = this.calculateSegmentLength(fileCount, complexity);
     const trackWidth = this.calculateTrackWidth(languages);
     
+    console.log("Track generation parameters:", {
+      segmentCount,
+      curveFrequency,
+      segmentLength,
+      trackWidth
+    });
+    
     // Start position and direction
-    let currentPosition = [0, 0, 0];
-    let currentRotation = [0, 0, 0];
-    let currentDirection = [0, 0, 1]; // Initial direction: forward (z-axis)
+    let currentPosition = new THREE.Vector3(0, 0, 0);
+    let currentDirection = new THREE.Vector3(0, 0, 1); // Initial direction: forward (z-axis)
+    let currentRotationY = 0; // Track rotation around Y axis
+    
+    // Track curve direction history
+    let consecutiveCurves = 0;
+    let lastCurveDirection = null;
     
     // Create starting segment
-    segments.push({
-      position: [...currentPosition],
-      rotation: [...currentRotation],
-      scale: { x: trackWidth, y: 0.2, z: segmentLength },
+    straights.push({
+      position: [currentPosition.x, 0, currentPosition.z],
+      rotation: [0, currentRotationY, 0],
+      length: segmentLength,
+      width: trackWidth,
       color: "#3b36e2"
     });
     
+    console.log("Added starting segment at position:", [currentPosition.x, currentPosition.y, currentPosition.z]);
+    
     // Update position for next segment
-    currentPosition = [
-      currentPosition[0] + currentDirection[0] * segmentLength,
-      currentPosition[1],
-      currentPosition[2] + currentDirection[2] * segmentLength
-    ];
+    currentPosition.addScaledVector(currentDirection, segmentLength);
     
     // Generate track segments and curves
     for (let i = 0; i < segmentCount; i++) {
@@ -57,78 +69,138 @@ class TrackGenerator {
       
       if (shouldCurve) {
         // Determine curve properties based on code metrics
-        const isRightTurn = this.determineCurveDirection(i, contents, languages);
-        const curveComplexity = this.determineCurveComplexity(complexity, dependencies);
+        let isRightTurn = this.determineCurveDirection(i, contents, languages);
         
-        // Add curve to track
-        curves.push({
-          position: [...currentPosition],
-          rotation: [0, isRightTurn ? 0 : Math.PI, 0],
-          complexity: curveComplexity
-        });
-        
-        // Update direction based on curve
-        if (isRightTurn) {
-          currentDirection = [currentDirection[2], 0, -currentDirection[0]];
-        } else {
-          currentDirection = [-currentDirection[2], 0, currentDirection[0]];
+        // Enforce direction change after two consecutive curves in the same direction
+        if (lastCurveDirection !== null) {
+          if (lastCurveDirection === isRightTurn) {
+            consecutiveCurves++;
+            // If we've already had 2 curves in the same direction, force a change
+            if (consecutiveCurves >= 2) {
+              isRightTurn = !isRightTurn;
+              consecutiveCurves = 0;
+              console.log("Forced curve direction change after 2 consecutive same-direction curves");
+            }
+          } else {
+            // Reset counter if direction changed
+            consecutiveCurves = 0;
+          }
         }
         
-        // Update rotation
-        currentRotation = [0, isRightTurn ? Math.PI / 2 : -Math.PI / 2, 0];
+        lastCurveDirection = isRightTurn;
         
-        // Move position after curve
-        currentPosition = [
-          currentPosition[0] + currentDirection[0] * (trackWidth * 2),
-          currentPosition[1],
-          currentPosition[2] + currentDirection[2] * (trackWidth * 2)
-        ];
+        // Use consistent curve radius and angle
+        const curveRadius = trackWidth * 1.5;
+        const curveAngle = 90; // 90-degree turn
+        
+        // Select curve color based on direction
+        const curveColor = isRightTurn ? "#FFA500" : "#FFCC00"; // Orange for right turns, yellow for left
+        
+        console.log(`Adding curve: position=${currentPosition.toArray()}, direction=${isRightTurn ? "right" : "left"}, color=${curveColor}`);
+        
+        // Add curve to track with proper orientation and color
+        curves.push({
+          position: [currentPosition.x, 0, currentPosition.z],
+          rotation: [0, currentRotationY, 0],
+          radius: curveRadius,
+          angle: curveAngle,
+          width: trackWidth,
+          direction: isRightTurn ? "right" : "left",
+          color: curveColor // Add color property to curve objects
+        });
+        
+        // Update direction and position based on curve
+        if (isRightTurn) {
+          currentRotationY -= Math.PI / 2; // Right turn is -90 degrees in Y
+        } else {
+          currentRotationY += Math.PI / 2; // Left turn is +90 degrees in Y
+        }
+        
+        // Normalize rotation angle to keep it between 0 and 2π
+        currentRotationY = currentRotationY % (Math.PI * 2);
+        
+        // Update current direction after the turn
+        currentDirection = new THREE.Vector3(
+          Math.sin(currentRotationY),
+          0,
+          Math.cos(currentRotationY)
+        );
+        
+        // Calculate the end position of the curve precisely
+        if (isRightTurn) {
+          // For a right turn, move to the right and forward
+          currentPosition.add(new THREE.Vector3(
+            -curveRadius * (1 - Math.cos(Math.PI/2)), 
+            0, 
+            curveRadius * Math.sin(Math.PI/2)
+          ).applyAxisAngle(new THREE.Vector3(0, 1, 0), currentRotationY + Math.PI/2));
+        } else {
+          // For a left turn, move to the left and forward
+          currentPosition.add(new THREE.Vector3(
+            curveRadius * (1 - Math.cos(Math.PI/2)), 
+            0, 
+            curveRadius * Math.sin(Math.PI/2)
+          ).applyAxisAngle(new THREE.Vector3(0, 1, 0), currentRotationY - Math.PI/2));
+        }
+        
+        console.log(`After curve: position=${currentPosition.toArray()}, rotation=${currentRotationY}, direction=${currentDirection.toArray()}`);
       }
       
       // Determine segment properties
       const segmentColor = this.getSegmentColor(i, languages);
-      const segmentElevation = this.getSegmentElevation(i, complexity, contributorCount);
       
-      // Adjust current position for elevation
-      currentPosition[1] = segmentElevation;
+      // Keep everything at y=0 for flat track
+      currentPosition.y = 0;
+      
+      // Calculate segment length with slight variation
+      const thisSegmentLength = segmentLength * (0.85 + Math.random() * 0.3);
+      
+      console.log(`Adding straight segment ${i} - Position: [${currentPosition.x.toFixed(2)}, ${currentPosition.y.toFixed(2)}, ${currentPosition.z.toFixed(2)}], Length: ${thisSegmentLength.toFixed(2)}`);
       
       // Add straight segment
-      segments.push({
-        position: [...currentPosition],
-        rotation: [...currentRotation],
-        scale: { 
-          x: trackWidth, 
-          y: 0.2, 
-          z: segmentLength + (Math.random() * segmentLength * 0.3)
-        },
+      straights.push({
+        position: [currentPosition.x, 0, currentPosition.z],
+        rotation: [0, currentRotationY, 0],
+        length: thisSegmentLength,
+        width: trackWidth,
         color: segmentColor
       });
       
       // Update position for next segment
-      currentPosition = [
-        currentPosition[0] + currentDirection[0] * segmentLength,
-        currentPosition[1],
-        currentPosition[2] + currentDirection[2] * segmentLength
-      ];
+      currentPosition.addScaledVector(currentDirection, thisSegmentLength);
     }
     
+    console.log("Track generation complete - Adding closing loop");
+    console.log(`  Final position: [${currentPosition.x.toFixed(2)}, ${currentPosition.y.toFixed(2)}, ${currentPosition.z.toFixed(2)}]`);
+    console.log(`  Final direction: [${currentDirection.x.toFixed(2)}, ${currentDirection.y.toFixed(2)}, ${currentDirection.z.toFixed(2)}]`);
+    
     // Ensure track loops back to start
-    this.closeTrackLoop(segments, curves, currentPosition, currentDirection);
+    this.closeTrackLoop(straights, curves, currentPosition, currentDirection, currentRotationY, trackWidth);
     
     // Generate obstacles based on code structure
-    const obstacles = this.generateObstacles(analysisData, segments, curves);
+    const obstacles = this.generateObstacles(analysisData, straights, curves);
     
-    return {
-      segments,
+    const trackData = {
+      straights,
       curves,
       obstacles,
       metadata: {
-        length: segments.length * segmentLength + curves.length * (trackWidth * 2),
+        length: straights.reduce((sum, segment) => sum + segment.length, 0) + 
+                curves.length * (trackWidth * Math.PI / 2),
         complexity: complexity.complexity,
         turns: curves.length,
         width: trackWidth
       }
     };
+    
+    console.log("Final track data:", {
+      straightCount: straights.length,
+      curveCount: curves.length,
+      totalLength: trackData.metadata.length,
+      turns: trackData.metadata.turns
+    });
+    
+    return trackData;
   }
   
   /**
@@ -196,20 +268,6 @@ class TrackGenerator {
   }
   
   /**
-   * Determine curve complexity based on code metrics
-   * @param {Object} complexity - Code complexity metrics
-   * @param {number} dependencies - Dependency count
-   * @returns {number} Curve complexity (1-10)
-   */
-  determineCurveComplexity(complexity, dependencies) {
-    // Mix of complexity metrics and dependencies
-    const baseComplexity = Math.max(1, Math.min(complexity.score, 10));
-    const dependencyFactor = Math.min(dependencies / 20, 1);
-    
-    return baseComplexity * (1 + dependencyFactor * 0.5);
-  }
-  
-  /**
    * Get segment color based on languages and position
    * @param {number} index - Segment index
    * @param {Object} languages - Language breakdown
@@ -249,121 +307,144 @@ class TrackGenerator {
   
   /**
    * Determine segment elevation based on code metrics
-   * @param {number} index - Segment index
-   * @param {Object} complexity - Code complexity metrics
-   * @param {number} contributorCount - Number of contributors
-   * @returns {number} Elevation value
+   * This now returns 0 always to keep the track flat
    */
   getSegmentElevation(index, complexity, contributorCount) {
-    // Create hills and valleys based on complexity and contributors
-    const baseElevation = 0;
-    
-    // Use sine waves with different frequencies to create terrain
-    const complexityFactor = complexity.score / 10;
-    const contributorFactor = Math.min(contributorCount / 20, 1);
-    
-    const elevation = 
-      Math.sin(index * 0.2 * complexityFactor) * 1.5 + 
-      Math.cos(index * 0.5 * contributorFactor) * 0.8;
-    
-    return baseElevation + elevation;
+    // Keep track flat - always return 0
+    return 0;
   }
   
   /**
-   * Ensure track loops back to the start
-   * @param {Array} segments - Track segments
-   * @param {Array} curves - Track curves
-   * @param {Array} currentPosition - Current position
-   * @param {Array} currentDirection - Current direction
+   * Connect the end of the track back to the start
    */
-  closeTrackLoop(segments, curves, currentPosition, currentDirection) {
-    // Calculate vector to starting point
-    const target = [0, 0, 0];
-    const toStart = [
-      target[0] - currentPosition[0],
-      0,
-      target[2] - currentPosition[2]
-    ];
+  closeTrackLoop(straights, curves, currentPosition, currentDirection, currentRotationY, trackWidth) {
+    console.log("Closing track loop");
     
-    // Normalize the vector
-    const distance = Math.sqrt(toStart[0] * toStart[0] + toStart[2] * toStart[2]);
+    // Calculate vector from current position to start
+    const startPosition = new THREE.Vector3(0, 0, 0);
+    const toStart = new THREE.Vector3().subVectors(startPosition, currentPosition);
     
-    // If we're already close to the start, just add a final segment
-    if (distance < 15) {
-      segments.push({
-        position: [
-          currentPosition[0] / 2, 
-          0, 
-          currentPosition[2] / 2
-        ],
-        rotation: [0, Math.atan2(currentDirection[0], currentDirection[2]), 0],
-        scale: { x: 3, y: 0.2, z: distance },
-        color: "#3b36e2"
-      });
+    console.log("Closing track loop:", {
+      currentPosition: currentPosition.toArray(),
+      distanceToStart: toStart.length()
+    });
+    
+    // For very close positions, connect directly
+    if (toStart.length() < trackWidth * 2) {
+      console.log("Direct connection to start - track is complete");
       return;
     }
     
-    const normalized = [toStart[0] / distance, 0, toStart[2] / distance];
+    // Calculate angle between current direction and direction to start
+    toStart.normalize();
+    const dotProduct = currentDirection.dot(toStart);
+    const angleToStart = Math.acos(Math.min(Math.max(dotProduct, -1), 1));
     
-    // Calculate dot product to find angle
-    const dotProduct = currentDirection[0] * normalized[0] + currentDirection[2] * normalized[2];
-    const angle = Math.acos(Math.min(Math.max(dotProduct, -1), 1));
+    // Determine if we need to turn right or left to face start point
+    const cross = new THREE.Vector3().crossVectors(currentDirection, toStart);
+    const isRightTurn = cross.y < 0;
     
-    // Determine if we need to turn right or left
-    const crossProduct = currentDirection[0] * normalized[2] - currentDirection[2] * normalized[0];
-    const isRightTurn = crossProduct < 0;
+    // First curve to turn toward start
+    const curveRadius = trackWidth * 1.5;
+    const firstCurveAngle = 90; // Simplified to 90-degree turns
     
-    // Add a curve to turn toward the start
+    console.log(`Adding closing curve: position=${currentPosition.toArray()}, direction=${isRightTurn ? "right" : "left"}`);
+    
+    // Add first curve with color
     curves.push({
-      position: [...currentPosition],
-      rotation: [0, isRightTurn ? -Math.PI / 2 : 0, 0],
-      complexity: 5
+      position: [currentPosition.x, 0, currentPosition.z],
+      rotation: [0, currentRotationY, 0],
+      radius: curveRadius,
+      angle: firstCurveAngle,
+      width: trackWidth,
+      direction: isRightTurn ? "right" : "left",
+      color: isRightTurn ? "#FFA500" : "#FFCC00" // Orange for right turns, yellow for left
     });
     
-    // Update direction after curve
-    let newDirection;
+    // Update direction and position after first curve
     if (isRightTurn) {
-      newDirection = [currentDirection[2], 0, -currentDirection[0]];
+      currentRotationY -= Math.PI / 2;
     } else {
-      newDirection = [-currentDirection[2], 0, currentDirection[0]];
+      currentRotationY += Math.PI / 2;
     }
     
-    // Calculate new position after the curve
-    const curveEndPosition = [
-      currentPosition[0] + newDirection[0] * 5,
-      currentPosition[1],
-      currentPosition[2] + newDirection[2] * 5
-    ];
+    // Normalize rotation
+    currentRotationY = currentRotationY % (Math.PI * 2);
     
-    // Add one more segment to get closer to start
-    segments.push({
-      position: [
-        curveEndPosition[0] + (normalized[0] * distance * 0.5),
-        0,
-        curveEndPosition[2] + (normalized[2] * distance * 0.5)
-      ],
-      rotation: [0, Math.atan2(normalized[0], normalized[2]), 0],
-      scale: { x: 3, y: 0.2, z: distance * 0.7 },
-      color: "#3b36e2"
-    });
+    // Update direction vector
+    currentDirection = new THREE.Vector3(
+      Math.sin(currentRotationY),
+      0,
+      Math.cos(currentRotationY)
+    );
     
-    // Add final connector to start
-    segments.push({
-      position: [2.5, 0, 5],
-      rotation: [0, Math.PI, 0],
-      scale: { x: 3, y: 0.2, z: 5 },
-      color: "#3b36e2"
-    });
+    // Update position after the curve
+    if (isRightTurn) {
+      currentPosition.add(new THREE.Vector3(
+        -curveRadius * (1 - Math.cos(Math.PI/2)), 
+        0, 
+        curveRadius * Math.sin(Math.PI/2)
+      ).applyAxisAngle(new THREE.Vector3(0, 1, 0), currentRotationY + Math.PI/2));
+    } else {
+      currentPosition.add(new THREE.Vector3(
+        curveRadius * (1 - Math.cos(Math.PI/2)), 
+        0, 
+        curveRadius * Math.sin(Math.PI/2)
+      ).applyAxisAngle(new THREE.Vector3(0, 1, 0), currentRotationY - Math.PI/2));
+    }
+    
+    // Now check if we need one more curve before connecting to start
+    const remainingDistance = new THREE.Vector3().subVectors(startPosition, currentPosition).length();
+    
+    if (remainingDistance > trackWidth * 4) {
+      // Add one more segment before the final curve
+      const finalSegmentLength = Math.min(remainingDistance * 0.7, trackWidth * 6);
+      
+      console.log(`Adding closing straight: position=${currentPosition.toArray()}, length=${finalSegmentLength}`);
+      
+      // Add straight segment
+      straights.push({
+        position: [currentPosition.x, 0, currentPosition.z],
+        rotation: [0, currentRotationY, 0],
+        length: finalSegmentLength,
+        width: trackWidth,
+        color: "#3b36e2"
+      });
+      
+      // Update position
+      currentPosition.addScaledVector(currentDirection, finalSegmentLength);
+      
+      // Add final curve to connect to start
+      const finalToStart = new THREE.Vector3().subVectors(startPosition, currentPosition);
+      const finalDotProduct = currentDirection.dot(finalToStart.normalize());
+      const finalCross = new THREE.Vector3().crossVectors(currentDirection, finalToStart.normalize());
+      const isFinalRightTurn = finalCross.y < 0;
+      
+      console.log(`Adding final curve: position=${currentPosition.toArray()}, direction=${isFinalRightTurn ? "right" : "left"}`);
+      
+      // Add the final curve with color
+      curves.push({
+        position: [currentPosition.x, 0, currentPosition.z],
+        rotation: [0, currentRotationY, 0],
+        radius: curveRadius,
+        angle: firstCurveAngle,
+        width: trackWidth,
+        direction: isFinalRightTurn ? "right" : "left",
+        color: isFinalRightTurn ? "#FFA500" : "#FFCC00" // Orange for right turns, yellow for left
+      });
+    }
+    
+    console.log("Track loop closed successfully");
   }
   
   /**
    * Generate obstacles based on code metrics
    * @param {Object} analysisData - Repository analysis data
-   * @param {Array} segments - Track segments
+   * @param {Array} straights - Track straights
    * @param {Array} curves - Track curves
    * @returns {Array} Obstacles data
    */
-  generateObstacles(analysisData, segments, curves) {
+  generateObstacles(analysisData, straights, curves) {
     // Placeholder for actual obstacle generation
     // In a full implementation, this would create obstacles based on:
     // - Code issues and bugs (from GitHub issues)
